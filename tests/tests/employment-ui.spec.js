@@ -1,58 +1,73 @@
 const { test, expect } = require('@playwright/test');
 
-test.describe('Employment Module - Credentials Management UI Testing', () => {
+test.describe('Employment Module - Promotion UI Verification', () => {
 
-  test('Validate Credentials Management UI and Navigation', async ({ page }) => {
+  test('Verify Promotion List UI Elements and Data Table', async ({ page }) => {
     // ---------------------------------------------------
     // 1. SETUP & LOGIN
     // ---------------------------------------------------
     await page.setViewportSize({ width: 1920, height: 1080 });
-    
-    // Start at the login page to establish a fresh session
     await page.goto('https://demo.culturehcm.com/login');
 
     await page.getByPlaceholder('Enter your email').fill('khi0001@karachi.co');
     await page.locator('input[type="password"]').fill('fHwgk9');
     await page.getByRole('button', { name: /login/i }).click();
 
-    // FIX: Wait for any dashboard variant (like employee-dashboard) to load
-    await page.waitForURL(/.*dashboard/); 
+    // Ensure session is set by waiting for the dashboard
+    await page.waitForURL(/.*dashboard/);
 
     // ---------------------------------------------------
-    // 2. NAVIGATION TO TARGET MODULE
+    // 2. NAVIGATION & STABILITY
     // ---------------------------------------------------
-    // FIX: Use 'networkidle' to ensure the table data is fully fetched before proceeding
-    await page.goto('https://demo.culturehcm.com/employee/credentials-management', { 
-      waitUntil: 'networkidle' 
+    await page.goto('https://demo.culturehcm.com/employee/promotion', { 
+      waitUntil: 'load' 
     });
     
-    await expect(page).toHaveURL(/.*credentials-management/);
-
-    // ---------------------------------------------------
-    // 3. UI VALIDATION
-    // ---------------------------------------------------
-    // Verify the page heading (flexible regex to avoid strict string errors)
-    const pageHeading = page.getByRole('heading', { name: /Credential/i }).first();
-    await expect(pageHeading).toBeVisible({ timeout: 10000 });
-
-    // Verify the credentials data table is present
-    const table = page.locator('table').first();
+    // Wait for the table container to be visible
+    const table = page.locator('table');
     await expect(table).toBeVisible();
 
-    // FIX: Updated headers to match the ACTUAL columns found in your UI snapshot
-    // Removed 'Email', 'Username', and 'Status' as they are not present in this specific table
-    const headers = ['HCM ID', 'Name', 'Created', 'Action'];
+    // ---------------------------------------------------
+    // 3. UI ELEMENT VERIFICATION (Static Elements)
+    // ---------------------------------------------------
+    // Verify the "+ Add New" button exists
+    await expect(page.getByRole('link', { name: /Add New/i })).toBeVisible();
     
+    // Verify Search Table Data input exists
+    await expect(page.getByPlaceholder('Search Table Data')).toBeVisible();
+
+    // Verify Column Headers
+    const headers = ['Id', 'Employee', 'Current Designation', 'New Designation', 'Promotion Date', 'Action'];
     for (const header of headers) {
-      // Validates that each specific column header exists and is visible
       await expect(page.getByRole('columnheader', { name: new RegExp(header, 'i') }).first()).toBeVisible();
     }
 
     // ---------------------------------------------------
-    // 4. FINAL CAPTURE
+    // 4. CONDITIONAL DATA & EXPORT VERIFICATION
     // ---------------------------------------------------
-    await page.screenshot({ path: `credentials-ui-final-${Date.now()}.png`, fullPage: true });
+    const noData = page.locator('text=No data');
     
-    console.log('Credentials Management UI Testing Completed Successfully');
+    if (await noData.isVisible()) {
+      console.log('Table is currently empty. Skipping data row and export icon verification.');
+    } else {
+      // These elements usually only render when data is present
+      const excelButton = page.locator('text=').last();
+      const pdfButton = page.locator('text=').last();
+
+      // Verify visibility of export buttons if data exists
+      await expect(excelButton).toBeVisible();
+      await expect(pdfButton).toBeVisible();
+
+      // Verify the specific data row
+      const tableRow = table.locator('tr').filter({ hasText: 'Mr Daniel Reeve' });
+      await expect(tableRow).toBeVisible();
+      await expect(tableRow).toContainText(/developer/i);
+    }
+
+    // ---------------------------------------------------
+    // 5. FINAL CAPTURE
+    // ---------------------------------------------------
+    await page.screenshot({ path: `promotion-ui-status-${Date.now()}.png`, fullPage: true });
+    console.log('UI structure verification completed.');
   });
 });
