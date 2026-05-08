@@ -1,45 +1,58 @@
 const { test, expect } = require('@playwright/test');
 
-test.describe('Employment Module - Consolidated UI Testing', () => {
+test.describe('Employment Module - Credentials Management UI Testing', () => {
 
-  test('Validate Employment List UI and Navigation', async ({ page }) => {
+  test('Validate Credentials Management UI and Navigation', async ({ page }) => {
+    // ---------------------------------------------------
     // 1. SETUP & LOGIN
+    // ---------------------------------------------------
     await page.setViewportSize({ width: 1920, height: 1080 });
+    
+    // Start at the login page to establish a fresh session
     await page.goto('https://demo.culturehcm.com/login');
 
     await page.getByPlaceholder('Enter your email').fill('khi0001@karachi.co');
     await page.locator('input[type="password"]').fill('fHwgk9');
     await page.getByRole('button', { name: /login/i }).click();
 
-    // Wait for any dashboard variant to load to confirm session
+    // FIX: Wait for any dashboard variant (like employee-dashboard) to load
     await page.waitForURL(/.*dashboard/); 
 
+    // ---------------------------------------------------
     // 2. NAVIGATION TO TARGET MODULE
-    // 'networkidle' is the "secret sauce" here—it waits until the page stops loading data
-    await page.goto('https://demo.culturehcm.com/employee/list-employee', { 
+    // ---------------------------------------------------
+    // FIX: Use 'networkidle' to ensure the table data is fully fetched before proceeding
+    await page.goto('https://demo.culturehcm.com/employee/credentials-management', { 
       waitUntil: 'networkidle' 
     });
     
-    await expect(page).toHaveURL(/.*list-employee/);
+    await expect(page).toHaveURL(/.*credentials-management/);
 
+    // ---------------------------------------------------
     // 3. UI VALIDATION
-    // We give the heading up to 10 seconds to appear just in case the server is slow
-    const pageHeading = page.getByRole('heading', { name: /Employee/i }).first();
+    // ---------------------------------------------------
+    // Verify the page heading (flexible regex to avoid strict string errors)
+    const pageHeading = page.getByRole('heading', { name: /Credential/i }).first();
     await expect(pageHeading).toBeVisible({ timeout: 10000 });
 
-    // Verify the data table is present
+    // Verify the credentials data table is present
     const table = page.locator('table').first();
     await expect(table).toBeVisible();
 
-    // Validate standard table headers
-    const headers = ['Emp. ID', 'Name', 'Designation', 'Status', 'Department', 'Action'];
+    // FIX: Updated headers to match the ACTUAL columns found in your UI snapshot
+    // Removed 'Email', 'Username', and 'Status' as they are not present in this specific table
+    const headers = ['HCM ID', 'Name', 'Created', 'Action'];
+    
     for (const header of headers) {
+      // Validates that each specific column header exists and is visible
       await expect(page.getByRole('columnheader', { name: new RegExp(header, 'i') }).first()).toBeVisible();
     }
 
+    // ---------------------------------------------------
     // 4. FINAL CAPTURE
-    await page.screenshot({ path: `employment-ui-success-${Date.now()}.png`, fullPage: true });
+    // ---------------------------------------------------
+    await page.screenshot({ path: `credentials-ui-final-${Date.now()}.png`, fullPage: true });
     
-    console.log('UI Testing Completed Successfully');
+    console.log('Credentials Management UI Testing Completed Successfully');
   });
 });
