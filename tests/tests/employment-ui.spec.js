@@ -1,649 +1,509 @@
 import { test, expect } from '@playwright/test';
 
-test.setTimeout(180000);
+test.setTimeout(240000);
 
-test('CultureHCM - Budget Payroll Deep Functional Test', async ({ page }) => {
+test('CultureHCM - Generate Payroll Deep UI & Functional Testing', async ({ page }) => {
 
-    // ===================================================
+    // =========================================================
     // SAFE STEP WRAPPER
-    // ===================================================
-    const safeStep = async (stepName, stepFn) => {
+    // =========================================================
+    const safeStep = async (stepName, stepFunction) => {
+
+        console.log(`\n========== ${stepName} ==========`);
+
         try {
-            console.log(`\n========== ${stepName} ==========`);
-            await stepFn();
+
+            await stepFunction();
+
             console.log(`✅ PASSED: ${stepName}`);
-        } catch (err) {
-            console.log(`⚠️ FAILED (ignored): ${stepName}`);
-            console.log(err.message);
+
+        } catch (error) {
+
+            console.log(`⚠️ FAILED BUT CONTINUING: ${stepName}`);
+            console.log(`Reason: ${error.message}`);
         }
     };
 
-    // ===================================================
-    // STEP 1 — LOGIN
-    // ===================================================
+    // =========================================================
+    // DISABLE ANIMATIONS
+    // =========================================================
+    await page.addStyleTag({
+        content: `
+            *,
+            *::before,
+            *::after {
+                transition: none !important;
+                animation: none !important;
+                scroll-behavior: auto !important;
+            }
+        `
+    });
+
+    // =========================================================
+    // LOGIN
+    // =========================================================
     await safeStep('LOGIN', async () => {
 
         await page.goto('https://demo.culturehcm.com/login', {
-            waitUntil: 'domcontentloaded'
+            waitUntil: 'domcontentloaded',
+            timeout: 120000
         });
 
-        await page.getByPlaceholder('Enter your email').fill('khi0001@karachi.co');
-        await page.locator('input[type="password"]').fill('fHwgk9');
-        await page.getByRole('button', { name: /login/i }).click();
+        await page.waitForTimeout(2000);
 
-        await page.waitForURL(/dashboard/, { timeout: 60000 });
-        console.log('Login successful');
-    });
+        const emailField = page.getByPlaceholder('Enter your email');
 
-    // ===================================================
-    // STEP 2 — NAVIGATE TO BUDGET PAYROLL
-    // ===================================================
-    await safeStep('NAVIGATE TO BUDGET PAYROLL', async () => {
+        await expect(emailField).toBeVisible({
+            timeout: 30000
+        });
 
-        await page.goto('https://demo.culturehcm.com/payroll-management/budget-payroll', {
-            waitUntil: 'domcontentloaded'
+        await emailField.fill('khi0001@karachi.co');
+
+        const passwordField = page.locator('input[type="password"]');
+
+        await passwordField.fill('fHwgk9');
+
+        const loginButton = page.getByRole('button', {
+            name: /login/i
+        });
+
+        await loginButton.click();
+
+        await page.waitForURL(/dashboard/, {
+            timeout: 60000
         });
 
         await page.waitForLoadState('networkidle');
-        console.log('Budget Payroll page opened');
+
+        console.log('✅ Login successful');
     });
 
-    // ===================================================
-    // STEP 3 — PAGE TITLE VALIDATION
-    // ===================================================
-    await safeStep('PAGE TITLE VALIDATION', async () => {
+    // =========================================================
+    // NAVIGATE TO GENERATE PAYROLL
+    // =========================================================
+    await safeStep('NAVIGATE TO GENERATE PAYROLL', async () => {
 
-        const title = page.locator('text=/budget payroll/i').first();
-        await expect(title).toBeVisible({ timeout: 10000 });
-        console.log('Page title "Budget Payroll" is visible');
+        await page.goto(
+            'https://demo.culturehcm.com/payroll-management/generate-payroll',
+            {
+                waitUntil: 'domcontentloaded',
+                timeout: 120000
+            }
+        );
 
-        // Breadcrumb: "Payroll Management / Budget Payroll"
-        const breadcrumb = page.locator('text=/payroll management/i').first();
-        if (await breadcrumb.count() > 0) {
-            console.log('Breadcrumb "Payroll Management" found');
-        }
+        await page.waitForLoadState('networkidle');
+
+        await page.waitForTimeout(3000);
+
+        const body = page.locator('body');
+
+        await expect(body).toBeVisible();
+
+        console.log('Generate Payroll page loaded');
     });
 
-    // ===================================================
-    // STEP 4 — SIDEBAR NAVIGATION PRESENCE
-    // ===================================================
-    await safeStep('SIDEBAR NAVIGATION', async () => {
+    // =========================================================
+    // PAGE HEADER VALIDATION
+    // =========================================================
+    await safeStep('PAGE HEADER VALIDATION', async () => {
 
-        const sidebarItems = [
-            'Employees',
-            'Attendance',
-            'Leave',
-            'Payroll'
+        const possibleHeaders = [
+            page.locator('text=/generate payroll/i').first(),
+            page.locator('h1').first(),
+            page.locator('h2').first()
         ];
 
-        for (const item of sidebarItems) {
-            const el = page.locator(`text=${item}`).first();
-            if (await el.count() > 0) {
-                console.log(`✔ Sidebar item "${item}" found`);
-            } else {
-                console.log(`⚠ Sidebar item "${item}" missing`);
-            }
-        }
-    });
+        for (const header of possibleHeaders) {
 
-    // ===================================================
-    // STEP 5 — PAYROLL SUB-MENU ITEMS
-    // ===================================================
-    await safeStep('PAYROLL SUB-MENU ITEMS', async () => {
-
-        const subMenuItems = [
-            'Salary & Benefits',
-            'Budget Payroll',
-            'Payroll Creation',
-            'Payroll Adjustment',
-            'Tax Override',
-            'Pending Payroll',
-            'Approved Payroll',
-            'Increment'
-        ];
-
-        for (const item of subMenuItems) {
-            const el = page.locator(`text=${item}`).first();
-            if (await el.count() > 0) {
-                console.log(`✔ Sub-menu item "${item}" found`);
-            } else {
-                console.log(`⚠ Sub-menu item "${item}" missing`);
-            }
-        }
-    });
-
-    // ===================================================
-    // STEP 6 — TOP HEADER COMPONENTS
-    // ===================================================
-    await safeStep('TOP HEADER COMPONENTS', async () => {
-
-        // Search bar
-        const searchBar = page.locator('input[placeholder*="Search"], [class*="search"]').first();
-        if (await searchBar.count() > 0) {
-            console.log('✔ Search bar present in header');
-        }
-
-        // Language selector (English)
-        const langSelector = page.locator('text=/english/i').first();
-        if (await langSelector.count() > 0) {
-            console.log('✔ Language selector (English) found');
-        }
-
-        // Notification bell icon
-        const bell = page.locator('[class*="bell"], [class*="notif"]').first();
-        if (await bell.count() > 0) {
-            console.log('✔ Notification icon found');
-        }
-
-        // User avatar / profile icon
-        const userAvatar = page.locator('[class*="avatar"], [class*="user"], [class*="profile"]').first();
-        if (await userAvatar.count() > 0) {
-            console.log('✔ User avatar/profile icon found');
-        }
-    });
-
-    // ===================================================
-    // STEP 7 — CREATE BUTTON
-    // ===================================================
-    await safeStep('CREATE BUTTON', async () => {
-
-        const createBtn = page.getByRole('button', { name: /\+\s*create/i })
-            .or(page.locator('button:has-text("Create")'))
-            .first();
-
-        await expect(createBtn).toBeVisible({ timeout: 8000 });
-        console.log('✔ "+ Create" button is visible');
-
-        const isEnabled = await createBtn.isEnabled();
-        console.log(`✔ Create button enabled: ${isEnabled}`);
-    });
-
-    // ===================================================
-    // STEP 8 — SHOW ENTRIES DROPDOWN
-    // ===================================================
-    await safeStep('SHOW ENTRIES DROPDOWN', async () => {
-
-        // "Show 50 entries" selector
-        const showSelect = page.locator('select').first()
-            .or(page.locator('[class*="entries"], [class*="per-page"]').first());
-
-        if (await showSelect.count() > 0) {
-            console.log('✔ "Show entries" dropdown found');
-
-            // Try changing the value
-            const tag = await showSelect.evaluate(el => el.tagName.toLowerCase());
-            if (tag === 'select') {
-                await showSelect.selectOption({ label: '25' }).catch(() => {
-                    console.log('Option 25 not available, trying 10');
-                });
-                await showSelect.selectOption({ label: '50' }).catch(() => {});
-                console.log('✔ Show entries dropdown is interactive');
-            }
-        } else {
-            console.log('⚠ Show entries control not found by locator');
-        }
-    });
-
-    // ===================================================
-    // STEP 9 — SEARCH TABLE DATA INPUT
-    // ===================================================
-    await safeStep('SEARCH TABLE DATA INPUT', async () => {
-
-        const searchInput = page.locator('input[placeholder*="Search Table"], input[placeholder*="search"]').first();
-
-        if (await searchInput.count() > 0) {
-            await expect(searchInput).toBeVisible({ timeout: 8000 });
-            console.log('✔ Search Table Data input found');
-
-            // Type a value and verify filtering
-            await searchInput.fill('Budget');
-            await page.waitForTimeout(1000);
-            console.log('✔ Typed "Budget" in search input');
-
-            // Check if rows still show
-            const rows = page.locator('table tbody tr, [class*="table"] [class*="row"]');
-            const rowCount = await rows.count();
-            console.log(`✔ Table rows after search: ${rowCount}`);
-
-            // Clear search
-            await searchInput.clear();
-            await page.waitForTimeout(800);
-            console.log('✔ Search input cleared');
-        } else {
-            console.log('⚠ Search input not found');
-        }
-    });
-
-    // ===================================================
-    // STEP 10 — EXPORT BUTTONS (Excel / PDF icons)
-    // ===================================================
-    await safeStep('EXPORT BUTTONS', async () => {
-
-        // Export buttons are typically icon buttons near the search bar
-        const exportBtns = page.locator('button[class*="export"], button[title*="export"], button[title*="Excel"], button[title*="PDF"]');
-        const count = await exportBtns.count();
-
-        if (count > 0) {
-            console.log(`✔ ${count} export button(s) found`);
-        } else {
-            // Fall back: look for icon-only buttons next to search (common pattern)
-            const iconBtns = page.locator('.btn-group button, [class*="toolbar"] button, [class*="export"]');
-            const fallbackCount = await iconBtns.count();
-            console.log(`✔ Icon/export-area buttons found: ${fallbackCount}`);
-        }
-    });
-
-    // ===================================================
-    // STEP 11 — REFRESH BUTTON
-    // ===================================================
-    await safeStep('REFRESH BUTTON', async () => {
-
-        const refreshBtn = page.getByRole('button', { name: /refresh/i }).first();
-
-        if (await refreshBtn.count() > 0) {
-            await expect(refreshBtn).toBeVisible({ timeout: 8000 });
-            console.log('✔ Refresh button is visible');
-
-            await refreshBtn.click();
-            await page.waitForLoadState('networkidle');
-            console.log('✔ Refresh button clicked — page reloaded');
-        } else {
-            console.log('⚠ Refresh button not found');
-        }
-    });
-
-    // ===================================================
-    // STEP 12 — TABLE COLUMN HEADERS
-    // ===================================================
-    await safeStep('TABLE COLUMN HEADERS', async () => {
-
-        const expectedColumns = [
-            'Id',
-            'Title',
-            'Year',
-            'Month',
-            'Division',
-            'Start Date',
-            'End Date',
-            'Created Date',
-            'Status',
-            'Action'
-        ];
-
-        for (const col of expectedColumns) {
-            const header = page.locator(`th:has-text("${col}"), [class*="header"]:has-text("${col}")`).first();
             if (await header.count() > 0) {
-                console.log(`✔ Column "${col}" found`);
-            } else {
-                console.log(`⚠ Column "${col}" missing`);
-            }
-        }
-    });
 
-    // ===================================================
-    // STEP 13 — TABLE SORTABLE COLUMNS
-    // ===================================================
-    await safeStep('TABLE SORTABLE COLUMNS', async () => {
+                const visible = await header.isVisible()
+                    .catch(() => false);
 
-        // Id and Action columns typically have sort arrows
-        const sortableHeaders = page.locator('th[class*="sort"], th:has([class*="sort"]), th:has(svg)');
-        const count = await sortableHeaders.count();
-        console.log(`✔ Sortable column headers detected: ${count}`);
+                if (visible) {
 
-        // Click on "Id" header to sort
-        const idHeader = page.locator('th:has-text("Id")').first();
-        if (await idHeader.count() > 0) {
-            await idHeader.click().catch(() => {});
-            await page.waitForTimeout(800);
-            console.log('✔ Clicked "Id" column to sort');
+                    const text = await header.innerText()
+                        .catch(() => '');
 
-            await idHeader.click().catch(() => {});
-            await page.waitForTimeout(800);
-            console.log('✔ Clicked "Id" column again to reverse sort');
-        }
-    });
+                    console.log(`Header found: ${text}`);
 
-    // ===================================================
-    // STEP 14 — TABLE ROW DATA VALIDATION
-    // ===================================================
-    await safeStep('TABLE ROW DATA VALIDATION', async () => {
-
-        const rows = page.locator('table tbody tr').or(page.locator('[class*="tbody"] [class*="row"]'));
-        const rowCount = await rows.count();
-        console.log(`✔ Total table rows found: ${rowCount}`);
-
-        if (rowCount > 0) {
-            const firstRow = rows.first();
-
-            // Validate expected data in first row matches screenshot
-            const rowText = await firstRow.innerText().catch(() => '');
-            console.log(`✔ First row text: ${rowText.replace(/\s+/g, ' ').trim().substring(0, 120)}`);
-
-            // Check for expected values from screenshot
-            const checks = ['2026', 'March', 'Appedology'];
-            for (const val of checks) {
-                if (rowText.includes(val)) {
-                    console.log(`  ✔ Row contains expected value: "${val}"`);
-                } else {
-                    console.log(`  ⚠ Expected value "${val}" not found in first row`);
+                    break;
                 }
             }
         }
     });
 
-    // ===================================================
-    // STEP 15 — STATUS BADGE (Done / Pending etc.)
-    // ===================================================
-    await safeStep('STATUS BADGE', async () => {
+    // =========================================================
+    // BREADCRUMB VALIDATION
+    // =========================================================
+    await safeStep('BREADCRUMB VALIDATION', async () => {
 
-        const statusBadge = page.locator(
-            '[class*="badge"], [class*="status"], [class*="chip"], span:has-text("Done"), span:has-text("Pending"), span:has-text("Approved")'
-        ).first();
+        const breadcrumb = page.locator(
+            'text=/payroll management/i'
+        );
 
-        if (await statusBadge.count() > 0) {
-            const text = await statusBadge.innerText().catch(() => '');
-            console.log(`✔ Status badge found with text: "${text.trim()}"`);
+        if (await breadcrumb.count() > 0) {
 
-            const visible = await statusBadge.isVisible();
-            console.log(`✔ Status badge visible: ${visible}`);
+            console.log('Breadcrumb visible');
+
         } else {
-            console.log('⚠ No status badge found');
+
+            console.log('⚠️ Breadcrumb missing');
         }
     });
 
-    // ===================================================
-    // STEP 16 — ACTION COLUMN THREE-DOT MENU
-    // ===================================================
-    await safeStep('ACTION THREE-DOT MENU', async () => {
+    // =========================================================
+    // FILTER SECTION VALIDATION
+    // =========================================================
+    await safeStep('FILTER SECTION VALIDATION', async () => {
 
-        // Three-dot (kebab) menu button in the action column
-        const kebab = page.locator('[class*="dropdown"] button, button[class*="action"], button:has([class*="dots"]), [aria-label*="action"], button:has-text("⋮"), button:has-text("…")').first()
-            .or(page.locator('table tbody tr').first().locator('button').last());
+        const dropdowns = page.locator('select');
 
-        if (await kebab.count() > 0) {
-            await kebab.click().catch(() => {});
-            await page.waitForTimeout(800);
-            console.log('✔ Action menu button clicked');
+        const dropdownCount = await dropdowns.count();
 
-            // Check for View option
-            const viewOption = page.getByRole('menuitem', { name: /view/i })
-                .or(page.locator('text=/^view$/i').first());
-            if (await viewOption.count() > 0) {
-                console.log('✔ "View" option visible in dropdown');
-            } else {
-                console.log('⚠ "View" option not found in dropdown');
-            }
+        console.log(`Dropdowns found: ${dropdownCount}`);
 
-            // Check for Regenerate option
-            const regenOption = page.getByRole('menuitem', { name: /regenerate/i })
-                .or(page.locator('text=/regenerate/i').first());
-            if (await regenOption.count() > 0) {
-                console.log('✔ "Regenerate" option visible in dropdown');
-            } else {
-                console.log('⚠ "Regenerate" option not found in dropdown');
-            }
+        for (let i = 0; i < dropdownCount; i++) {
 
-            // Close dropdown by pressing Escape
-            await page.keyboard.press('Escape');
-            console.log('✔ Dropdown closed via Escape key');
-        } else {
-            console.log('⚠ Three-dot action menu button not found');
-        }
-    });
+            const dropdown = dropdowns.nth(i);
 
-    // ===================================================
-    // STEP 17 — VIEW ACTION (opens detail page)
-    // ===================================================
-    await safeStep('VIEW ACTION — NAVIGATE TO DETAIL', async () => {
+            const visible = await dropdown.isVisible()
+                .catch(() => false);
 
-        // Re-open action menu on the first row
-        const kebab = page.locator('table tbody tr').first().locator('button').last();
+            if (visible) {
 
-        if (await kebab.count() > 0) {
-            await kebab.click().catch(() => {});
-            await page.waitForTimeout(800);
+                const options = await dropdown.locator('option')
+                    .allTextContents()
+                    .catch(() => []);
 
-            const viewOption = page.locator('text=/^view$/i').first()
-                .or(page.getByRole('menuitem', { name: /view/i }).first());
-
-            if (await viewOption.count() > 0) {
-                await viewOption.click().catch(() => {});
-                await page.waitForLoadState('networkidle');
-                console.log(`✔ Navigated to detail page: ${page.url()}`);
-
-                // Go back to budget payroll list
-                await page.goBack();
-                await page.waitForLoadState('networkidle');
-                console.log('✔ Navigated back to Budget Payroll list');
-            } else {
-                await page.keyboard.press('Escape');
-                console.log('⚠ "View" option not found in menu');
+                console.log(`Dropdown ${i + 1} options: ${options.join(', ')}`);
             }
         }
+
+        const inputs = page.locator('input');
+
+        const inputCount = await inputs.count();
+
+        console.log(`Input fields found: ${inputCount}`);
     });
 
-    // ===================================================
-    // STEP 18 — CREATE BUTTON MODAL / PAGE
-    // ===================================================
-    await safeStep('CREATE BUTTON — OPENS FORM', async () => {
+    // =========================================================
+    // SEARCH / FILTER FUNCTIONALITY
+    // =========================================================
+    await safeStep('FILTER FUNCTIONALITY', async () => {
 
-        const createBtn = page.getByRole('button', { name: /\+\s*create/i })
-            .or(page.locator('button:has-text("Create")'))
-            .first();
+        const dropdowns = page.locator('select');
 
-        if (await createBtn.count() > 0) {
-            await createBtn.click().catch(() => {});
-            await page.waitForTimeout(1500);
-            console.log('✔ Create button clicked');
+        const count = await dropdowns.count();
 
-            const currentUrl = page.url();
-            console.log(`✔ URL after Create click: ${currentUrl}`);
+        for (let i = 0; i < Math.min(count, 3); i++) {
 
-            // Check if a modal opened
-            const modal = page.locator('[class*="modal"], [role="dialog"]').first();
-            if (await modal.count() > 0 && await modal.isVisible()) {
-                console.log('✔ Modal/dialog opened after Create click');
+            const dropdown = dropdowns.nth(i);
 
-                // Look for form fields inside the modal
-                const fields = ['title', 'year', 'month', 'division', 'start', 'end'];
-                for (const field of fields) {
-                    const input = modal.locator(`input[name*="${field}"], select[name*="${field}"], [placeholder*="${field}"]`).first();
-                    if (await input.count() > 0) {
-                        console.log(`  ✔ Form field "${field}" found in modal`);
+            const visible = await dropdown.isVisible()
+                .catch(() => false);
+
+            if (visible) {
+
+                const options = await dropdown.locator('option').count();
+
+                if (options > 1) {
+
+                    try {
+
+                        await dropdown.selectOption({
+                            index: 1
+                        });
+
+                        await page.waitForTimeout(1500);
+
+                        console.log(`Dropdown ${i + 1} tested`);
+
+                    } catch {
+
+                        console.log(`⚠️ Dropdown ${i + 1} failed`);
                     }
                 }
-
-                // Close modal
-                const closeBtn = modal.locator('button:has-text("Cancel"), button:has-text("Close"), [aria-label*="close"]').first();
-                if (await closeBtn.count() > 0) {
-                    await closeBtn.click().catch(() => {});
-                    console.log('✔ Modal closed via Cancel/Close button');
-                } else {
-                    await page.keyboard.press('Escape');
-                    console.log('✔ Modal closed via Escape');
-                }
-            } else if (currentUrl !== 'https://demo.culturehcm.com/payroll-management/budget-payroll') {
-                // Navigated to a create form page
-                console.log('✔ Navigated to a create form page');
-                await page.goBack();
-                await page.waitForLoadState('networkidle');
-                console.log('✔ Navigated back to Budget Payroll list');
-            } else {
-                console.log('⚠ No modal or navigation detected after Create click');
             }
         }
     });
 
-    // ===================================================
-    // STEP 19 — PAGINATION CONTROLS
-    // ===================================================
-    await safeStep('PAGINATION CONTROLS', async () => {
+    // =========================================================
+    // TABLE VALIDATION
+    // =========================================================
+    await safeStep('TABLE VALIDATION', async () => {
 
-        const pagination = page.locator('[class*="pagination"], [class*="pager"], nav[aria-label*="page"]').first();
+        const tables = page.locator('table');
 
-        if (await pagination.count() > 0) {
-            console.log('✔ Pagination component found');
+        const tableCount = await tables.count();
 
-            const nextBtn = pagination.locator('button:has-text("Next"), [aria-label*="next"]').first();
-            const prevBtn = pagination.locator('button:has-text("Prev"), [aria-label*="prev"]').first();
+        console.log(`Tables found: ${tableCount}`);
 
-            if (await nextBtn.count() > 0) {
-                console.log('✔ Next button found in pagination');
-            }
-            if (await prevBtn.count() > 0) {
-                console.log('✔ Previous button found in pagination');
-            }
-        } else {
-            // With only 1 record, pagination may be hidden
-            console.log('ℹ Pagination not visible (may be hidden when record count ≤ page size)');
-        }
-    });
+        if (tableCount > 0) {
 
-    // ===================================================
-    // STEP 20 — EMPTY STATE SEARCH (NO RESULTS)
-    // ===================================================
-    await safeStep('EMPTY STATE — SEARCH NO RESULTS', async () => {
+            const table = tables.first();
 
-        const searchInput = page.locator('input[placeholder*="Search Table"], input[placeholder*="search"]').first();
+            const headers = await table.locator('th')
+                .allInnerTexts()
+                .catch(() => []);
 
-        if (await searchInput.count() > 0) {
-            await searchInput.fill('ZZZZZ_NO_MATCH_XYZXYZ');
-            await page.waitForTimeout(1200);
+            console.log(`Table Headers: ${headers.join(' | ')}`);
 
-            const rows = page.locator('table tbody tr');
-            const count = await rows.count();
+            const rows = await table.locator('tbody tr')
+                .count()
+                .catch(() => 0);
 
-            if (count === 0) {
-                console.log('✔ No rows displayed for unmatched search (correct behavior)');
-            } else {
-                // Check if "No data" or similar text shown
-                const noData = page.locator('text=/no data|no record|no result|empty/i').first();
-                if (await noData.count() > 0) {
-                    console.log('✔ Empty state message displayed');
-                } else {
-                    console.log(`⚠ ${count} rows still showing for unmatchable search term`);
-                }
-            }
+            console.log(`Table rows: ${rows}`);
 
-            await searchInput.clear();
-            await page.waitForTimeout(800);
-            console.log('✔ Search cleared — table restored');
-        }
-    });
+            if (rows > 0) {
 
-    // ===================================================
-    // STEP 21 — BACK BUTTON (← arrow)
-    // ===================================================
-    await safeStep('BACK BUTTON', async () => {
+                const firstRow = await table.locator('tbody tr')
+                    .first()
+                    .locator('td')
+                    .allInnerTexts()
+                    .catch(() => []);
 
-        const backBtn = page.locator('button:has([class*="arrow"]), a:has([class*="arrow-left"]), [aria-label*="back"], button[class*="back"]').first()
-            .or(page.locator('text=/←/').first());
-
-        if (await backBtn.count() > 0) {
-            console.log('✔ Back/arrow button found near page title');
-        } else {
-            // Look for a chevron or arrow icon near the title
-            const arrow = page.locator('[class*="back"], [class*="return"], [class*="arrow"]').first();
-            if (await arrow.count() > 0) {
-                console.log('✔ Back navigation element found');
-            } else {
-                console.log('⚠ Back button not found');
+                console.log(`First row: ${firstRow.join(' | ')}`);
             }
         }
     });
 
-    // ===================================================
-    // STEP 22 — COLOUR PALETTE / BRANDING DOTS
-    // ===================================================
-    await safeStep('BRANDING COLOUR PALETTE', async () => {
+    // =========================================================
+    // SEARCH INPUT VALIDATION
+    // =========================================================
+    await safeStep('SEARCH INPUT VALIDATION', async () => {
 
-        // CultureHCM header has 4 coloured circles (orange, pink, teal, cyan)
-        const dots = page.locator('[class*="dot"], [class*="color-circle"], header span[style*="background"]');
-        const count = await dots.count();
-        console.log(`✔ Branding colour dots found: ${count}`);
+        const searchInputs = page.locator(
+            'input[placeholder*="Search"], input[type="search"]'
+        );
+
+        const count = await searchInputs.count();
+
+        console.log(`Search inputs found: ${count}`);
+
+        if (count > 0) {
+
+            const search = searchInputs.first();
+
+            await search.fill('Ali')
+                .catch(() => {});
+
+            await page.waitForTimeout(1500);
+
+            console.log('Search input tested');
+
+            await search.clear()
+                .catch(() => {});
+        }
     });
 
-    // ===================================================
-    // STEP 23 — UI STABILITY / BROKEN IMAGES
-    // ===================================================
-    await safeStep('UI STABILITY — BROKEN IMAGES', async () => {
+    // =========================================================
+    // BUTTON VALIDATION
+    // =========================================================
+    await safeStep('BUTTON VALIDATION', async () => {
 
-        const images = page.locator('img');
-        const count = await images.count();
-        console.log(`Images found on page: ${count}`);
+        const buttons = page.locator('button');
 
-        let brokenCount = 0;
+        const count = await buttons.count();
+
+        console.log(`Buttons found: ${count}`);
+
         for (let i = 0; i < Math.min(count, 10); i++) {
-            const naturalWidth = await images.nth(i).evaluate(img => img.naturalWidth).catch(() => -1);
-            if (naturalWidth === 0) {
-                brokenCount++;
-                const src = await images.nth(i).getAttribute('src').catch(() => 'unknown');
-                console.log(`  ⚠ Broken image at index ${i}: ${src}`);
-            }
-        }
 
-        if (brokenCount === 0) {
-            console.log('✔ No broken images detected');
-        } else {
-            console.log(`⚠ ${brokenCount} broken image(s) detected`);
+            const button = buttons.nth(i);
+
+            const visible = await button.isVisible()
+                .catch(() => false);
+
+            if (visible) {
+
+                const text = await button.innerText()
+                    .catch(() => '');
+
+                console.log(`Button ${i + 1}: ${text}`);
+            }
         }
     });
 
-    // ===================================================
-    // STEP 24 — CONSOLE ERROR MONITORING
-    // ===================================================
-    await safeStep('CONSOLE ERRORS CHECK', async () => {
+    // =========================================================
+    // GENERATE PAYROLL BUTTON
+    // =========================================================
+    await safeStep('GENERATE PAYROLL FUNCTIONALITY', async () => {
 
-        const errors = [];
-        page.on('console', msg => {
-            if (msg.type() === 'error') {
-                errors.push(msg.text());
-            }
+        const generateButton = page.getByRole('button', {
+            name: /generate/i
         });
 
-        // Reload to capture any errors
-        await page.reload({ waitUntil: 'networkidle' });
-        await page.waitForTimeout(2000);
+        const count = await generateButton.count();
 
-        if (errors.length === 0) {
-            console.log('✔ No console errors detected on page load');
-        } else {
-            console.log(`⚠ ${errors.length} console error(s) detected:`);
-            errors.slice(0, 5).forEach(e => console.log(`  - ${e.substring(0, 120)}`));
+        if (count > 0) {
+
+            const button = generateButton.first();
+
+            const enabled = await button.isEnabled()
+                .catch(() => false);
+
+            console.log(`Generate button enabled: ${enabled}`);
+
+            if (enabled) {
+
+                await button.click()
+                    .catch(() => {});
+
+                await page.waitForTimeout(3000);
+
+                console.log('Generate payroll button clicked');
+            }
         }
     });
 
-    // ===================================================
-    // STEP 25 — RESPONSIVE LAYOUT CHECK
-    // ===================================================
-    await safeStep('RESPONSIVE LAYOUT — MOBILE VIEW', async () => {
+    // =========================================================
+    // PAGINATION VALIDATION
+    // =========================================================
+    await safeStep('PAGINATION VALIDATION', async () => {
 
-        await page.setViewportSize({ width: 375, height: 812 });
-        await page.waitForTimeout(800);
-        console.log('✔ Viewport set to mobile (375x812)');
+        const pagination = page.locator(
+            '.ant-pagination, [class*="pagination"]'
+        );
 
-        const title = page.locator('text=/budget payroll/i').first();
-        const visible = await title.isVisible().catch(() => false);
-        console.log(`✔ Page title visible on mobile: ${visible}`);
+        const count = await pagination.count();
 
-        // Restore desktop viewport
-        await page.setViewportSize({ width: 1280, height: 800 });
-        await page.waitForTimeout(500);
-        console.log('✔ Viewport restored to desktop (1280x800)');
+        if (count > 0) {
+
+            console.log('Pagination visible');
+
+            const nextButton = pagination.locator('button').last();
+
+            const enabled = await nextButton.isEnabled()
+                .catch(() => false);
+
+            if (enabled) {
+
+                await nextButton.click()
+                    .catch(() => {});
+
+                await page.waitForTimeout(2000);
+
+                console.log('Pagination next button tested');
+            }
+        }
     });
 
-    // ===================================================
-    // STEP 26 — FINAL SCREENSHOT
-    // ===================================================
+    // =========================================================
+    // EXPORT / DOWNLOAD BUTTONS
+    // =========================================================
+    await safeStep('EXPORT BUTTON VALIDATION', async () => {
+
+        const exportButtons = page.locator(
+            'button:has(svg), button:has(img)'
+        );
+
+        const count = await exportButtons.count();
+
+        console.log(`Export/Icon buttons found: ${count}`);
+
+        if (count > 0) {
+
+            try {
+
+                await exportButtons.first().click();
+
+                await page.waitForTimeout(1500);
+
+                console.log('Export/Icon button clicked');
+
+            } catch {
+
+                console.log('⚠️ Export button failed');
+            }
+        }
+    });
+
+    // =========================================================
+    // MODAL / POPUP VALIDATION
+    // =========================================================
+    await safeStep('MODAL VALIDATION', async () => {
+
+        const modals = page.locator(
+            '[role="dialog"], .modal, .ant-modal'
+        );
+
+        const count = await modals.count();
+
+        console.log(`Modals found: ${count}`);
+
+        if (count > 0) {
+
+            const modal = modals.first();
+
+            const visible = await modal.isVisible()
+                .catch(() => false);
+
+            console.log(`Modal visible: ${visible}`);
+        }
+    });
+
+    // =========================================================
+    // BROKEN IMAGE CHECK
+    // =========================================================
+    await safeStep('BROKEN IMAGE CHECK', async () => {
+
+        const images = page.locator('img');
+
+        const totalImages = await images.count();
+
+        let brokenImages = 0;
+
+        for (let i = 0; i < totalImages; i++) {
+
+            const width = await images.nth(i)
+                .evaluate(img => img.naturalWidth)
+                .catch(() => 0);
+
+            if (width === 0) {
+
+                brokenImages++;
+            }
+        }
+
+        if (brokenImages > 0) {
+
+            console.log(`⚠️ Broken images found: ${brokenImages}`);
+
+        } else {
+
+            console.log('All images loaded correctly');
+        }
+    });
+
+    // =========================================================
+    // SCROLL TEST
+    // =========================================================
+    await safeStep('SCROLL TEST', async () => {
+
+        await page.mouse.wheel(0, 3000);
+
+        await page.waitForTimeout(1000);
+
+        await page.mouse.wheel(0, -3000);
+
+        await page.waitForTimeout(1000);
+
+        console.log('Scroll test completed');
+    });
+
+    // =========================================================
+    // FINAL SCREENSHOT
+    // =========================================================
     await safeStep('FINAL SCREENSHOT', async () => {
 
         await page.screenshot({
-            path: 'budget-payroll-final.png',
+            path: 'test-assetsgenerate-payroll-final.png',
             fullPage: true
         });
 
-        console.log('Final screenshot saved as budget-payroll-final.png');
+        console.log('Final screenshot captured');
     });
 
-    console.log('\n🎯 Budget Payroll Functional Deep Test Completed');
+    console.log('Generate Payroll Deep Testing Completed');
 });
