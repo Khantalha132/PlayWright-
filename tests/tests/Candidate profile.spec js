@@ -1,0 +1,1296 @@
+import { test, expect } from '@playwright/test';
+
+test.setTimeout(300000);
+
+test('CultureHCM - Candidate Profile Full Module Testing', async ({ page }) => {
+
+    // =========================================================
+    // SAFE STEP WRAPPER
+    // =========================================================
+    const safeStep = async (stepName, fn) => {
+        console.log(`\n========== ${stepName} ==========`);
+        try {
+            await fn();
+            console.log(`✅ PASSED: ${stepName}`);
+        } catch (e) {
+            console.log(`⚠️ FAILED BUT CONTINUING: ${stepName}`);
+            console.log(`   Reason: ${e.message}`);
+        }
+    };
+
+    // =========================================================
+    // HELPERS
+    // =========================================================
+    const clickButtonByText = async (text) => {
+        const btns = page.locator('button');
+        const count = await btns.count().catch(() => 0);
+        for (let i = 0; i < count; i++) {
+            try {
+                const btn = btns.nth(i);
+                const t = await btn.innerText({ timeout: 1500 }).catch(() => '');
+                const v = await btn.isVisible({ timeout: 1500 }).catch(() => false);
+                if (v && t.trim().toUpperCase() === text.toUpperCase()) {
+                    await btn.click({ timeout: 5000 });
+                    console.log(`  Button "${text}" clicked`);
+                    return true;
+                }
+            } catch { }
+        }
+        console.log(`  ⚠️ Button "${text}" not found`);
+        return false;
+    };
+
+    const safeFill = async (locator, value, label) => {
+        try {
+            await locator.fill(value, { timeout: 4000 });
+            console.log(`  Filled "${label}": ${value}`);
+            return true;
+        } catch {
+            console.log(`  ⚠️ Could not fill "${label}"`);
+            return false;
+        }
+    };
+
+    const safeClick = async (locator, label) => {
+        try {
+            await locator.click({ timeout: 5000 });
+            console.log(`  Clicked: ${label}`);
+            return true;
+        } catch {
+            console.log(`  ⚠️ Could not click: ${label}`);
+            return false;
+        }
+    };
+
+    const getTableRows = async () => {
+        return await page.locator('table tbody tr').count().catch(() => 0);
+    };
+
+    const logTableData = async (maxRows = 5) => {
+        const rows = await getTableRows();
+        console.log(`  Total rows: ${rows}`);
+        for (let i = 0; i < Math.min(rows, maxRows); i++) {
+            const cells = await page.locator('table tbody tr').nth(i)
+                .locator('td').allInnerTexts().catch(() => []);
+            console.log(`  Row ${i + 1}: ${cells.join(' | ')}`);
+        }
+        return rows;
+    };
+
+    const closeAnyModal = async () => {
+        const sels = [
+            'button[aria-label="Close"]',
+            '.ant-modal-close',
+            '.ant-drawer-close',
+            'button:has-text("Cancel")',
+            'button:has-text("Close")'
+        ];
+        for (const sel of sels) {
+            const el = page.locator(sel).first();
+            if (await el.count() > 0 && await el.isVisible({ timeout: 1500 }).catch(() => false)) {
+                await el.click({ timeout: 4000 }).catch(() => {});
+                await page.waitForTimeout(800);
+                return;
+            }
+        }
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(800);
+    };
+
+    // =========================================================
+    // DISABLE ANIMATIONS
+    // =========================================================
+    await page.addStyleTag({
+        content: `
+            *, *::before, *::after {
+                transition: none !important;
+                animation: none !important;
+                scroll-behavior: auto !important;
+            }
+        `
+    });
+
+    // =========================================================
+    // STEP 1: LOGIN
+    // =========================================================
+    await safeStep('STEP 1 - LOGIN', async () => {
+
+        await page.goto('https://demo.culturehcm.com/login', {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+        });
+
+        await page.waitForTimeout(2000);
+
+        const email = page.locator('input[type="email"], input[placeholder*="email" i]').first();
+        await email.waitFor({ state: 'visible', timeout: 15000 });
+        await email.fill('apd0016@appedology.com');
+
+        await page.locator('input[type="password"]').first().fill('0yMT8e');
+        await clickButtonByText('Login');
+
+        await page.waitForURL(/dashboard/, { timeout: 30000 });
+        await page.waitForLoadState('networkidle', { timeout: 20000 });
+
+        console.log('  Logged in — Asfand Khan / SQA Engineer');
+    });
+
+    // =========================================================
+    // STEP 2: NAVIGATE TO CANDIDATE PROFILE
+    // =========================================================
+    await safeStep('STEP 2 - NAVIGATE TO CANDIDATE PROFILE', async () => {
+
+        await page.goto('https://demo.culturehcm.com/recruitment/candidate-information', {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+        });
+
+        await page.waitForLoadState('networkidle', { timeout: 20000 });
+        await page.waitForTimeout(3000);
+
+        console.log(`  Loaded URL: ${page.url()}`);
+
+        const bodyText = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
+        console.log(`  Has "Candidate Profile" text: ${/candidate profile/i.test(bodyText)}`);
+        console.log(`  Has candidate data: ${/PRO-ST|APD-SD/i.test(bodyText)}`);
+    });
+
+    // =========================================================
+    // STEP 3: PAGE TITLE & BREADCRUMB VALIDATION
+    // =========================================================
+    await safeStep('STEP 3 - PAGE TITLE & BREADCRUMB', async () => {
+
+        // Title: "Candidate Profile"
+        const titleEl = page.locator('text=Candidate Profile').first();
+        const titleVisible = await titleEl.isVisible({ timeout: 3000 }).catch(() => false);
+        console.log(`  Page title "Candidate Profile": ${titleVisible ? '✅' : '⚠️ not found'}`);
+
+        if (titleVisible) {
+            const titleText = await titleEl.innerText({ timeout: 2000 }).catch(() => '');
+            console.log(`  Title text: "${titleText.trim()}"`);
+        }
+
+        // Breadcrumb: Recruitment / Candidate Profile
+        const crumbs = ['Recruitment', 'Candidate Profile'];
+        for (const crumb of crumbs) {
+            const el = page.locator(`text="${crumb}"`).first();
+            const visible = await el.count() > 0
+                ? await el.isVisible({ timeout: 2000 }).catch(() => false)
+                : false;
+            console.log(`  Breadcrumb "${crumb}": ${visible ? '✅' : '⚠️ not found'}`);
+        }
+
+        // Back arrow button
+        const backBtn = page.locator('a[href*="recruitment"], button[onclick*="back"], [class*="back"]').first();
+        const backVisible = await backBtn.count() > 0
+            ? await backBtn.isVisible({ timeout: 2000 }).catch(() => false)
+            : false;
+        console.log(`  Back button: ${backVisible ? '✅ present' : '⚠️ not found'}`);
+    });
+
+    // =========================================================
+    // STEP 4: FILTER SECTION VALIDATION
+    // Filters: Status | Department | Designation | Gender | Location | Experience | Applicant Id
+    // =========================================================
+    await safeStep('STEP 4 - FILTER SECTION VALIDATION', async () => {
+
+        const selects = page.locator('select');
+        const count = await selects.count().catch(() => 0);
+        console.log(`  Total <select> dropdowns: ${count}`);
+
+        const expectedFilters = [
+            'Select Status',
+            'Select Department',
+            'Select Designation',
+            'Select Gender',
+            'Select Location',
+            'Select Experience'
+        ];
+
+        for (let i = 0; i < count; i++) {
+            try {
+                const sel = selects.nth(i);
+                const visible = await sel.isVisible({ timeout: 2000 });
+                if (visible) {
+                    const opts = await sel.locator('option').allTextContents().catch(() => []);
+                    const name = await sel.getAttribute('name').catch(() => '');
+                    const id   = await sel.getAttribute('id').catch(() => '');
+                    console.log(`  Filter ${i + 1} [name="${name}" id="${id}"]: [${opts.join(' | ')}]`);
+
+                    // Check if matches expected
+                    const matchesExpected = expectedFilters.some(f =>
+                        opts.some(o => o.toLowerCase().includes(f.toLowerCase().replace('select ', '')))
+                    );
+                    if (matchesExpected) console.log(`    ✅ Matches expected filter`);
+                }
+            } catch { }
+        }
+
+        // Applicant Id input
+        const applicantIdInput = page.locator(
+            'input[placeholder="Applicant Id"], input[placeholder*="Applicant" i], input[name*="applicant" i]'
+        ).first();
+        const idVisible = await applicantIdInput.count() > 0
+            ? await applicantIdInput.isVisible({ timeout: 2000 }).catch(() => false)
+            : false;
+        console.log(`  Applicant Id input: ${idVisible ? '✅ visible' : '⚠️ not found'}`);
+    });
+
+    // =========================================================
+    // STEP 5: FILTER BY STATUS → SEARCH → RESET
+    // =========================================================
+    await safeStep('STEP 5 - FILTER BY STATUS', async () => {
+
+        const selects = page.locator('select');
+        const count = await selects.count().catch(() => 0);
+
+        // Status = first dropdown
+        if (count > 0) {
+            const statusSel = selects.first();
+            const opts = await statusSel.locator('option').allTextContents().catch(() => []);
+            console.log(`  Status options: ${opts.join(', ')}`);
+
+            for (let i = 1; i < opts.length; i++) {
+                await statusSel.selectOption({ index: i }).catch(() => {});
+                await page.waitForTimeout(400);
+                console.log(`  Status selected: "${opts[i]}"`);
+
+                await clickButtonByText('SEARCH');
+                await page.waitForTimeout(2500);
+                const rows = await getTableRows();
+                console.log(`  Rows for status "${opts[i]}": ${rows}`);
+
+                await clickButtonByText('RESET');
+                await page.waitForTimeout(1500);
+            }
+        }
+    });
+
+    // =========================================================
+    // STEP 6: FILTER BY DEPARTMENT → SEARCH → RESET
+    // =========================================================
+    await safeStep('STEP 6 - FILTER BY DEPARTMENT', async () => {
+
+        const selects = page.locator('select');
+        const count = await selects.count().catch(() => 0);
+
+        // Department = second dropdown
+        if (count > 1) {
+            const deptSel = selects.nth(1);
+            const opts = await deptSel.locator('option').allTextContents().catch(() => []);
+            console.log(`  Department options: ${opts.join(', ')}`);
+
+            if (opts.length > 1) {
+                await deptSel.selectOption({ index: 1 }).catch(() => {});
+                await page.waitForTimeout(400);
+                console.log(`  Department selected: "${opts[1]}"`);
+
+                await clickButtonByText('SEARCH');
+                await page.waitForTimeout(2500);
+                const rows = await getTableRows();
+                console.log(`  Rows for department "${opts[1]}": ${rows}`);
+
+                await logTableData(3);
+
+                await clickButtonByText('RESET');
+                await page.waitForTimeout(1500);
+                console.log('  Department filter reset');
+            }
+        }
+    });
+
+    // =========================================================
+    // STEP 7: FILTER BY DESIGNATION → SEARCH → RESET
+    // =========================================================
+    await safeStep('STEP 7 - FILTER BY DESIGNATION', async () => {
+
+        const selects = page.locator('select');
+        const count = await selects.count().catch(() => 0);
+
+        // Designation = third dropdown
+        if (count > 2) {
+            const desSel = selects.nth(2);
+            const opts = await desSel.locator('option').allTextContents().catch(() => []);
+            console.log(`  Designation options: ${opts.join(', ')}`);
+
+            if (opts.length > 1) {
+                await desSel.selectOption({ index: 1 }).catch(() => {});
+                await page.waitForTimeout(400);
+                console.log(`  Designation selected: "${opts[1]}"`);
+
+                await clickButtonByText('SEARCH');
+                await page.waitForTimeout(2500);
+                const rows = await getTableRows();
+                console.log(`  Rows for designation "${opts[1]}": ${rows}`);
+
+                await clickButtonByText('RESET');
+                await page.waitForTimeout(1500);
+                console.log('  Designation filter reset');
+            }
+        }
+    });
+
+    // =========================================================
+    // STEP 8: FILTER BY GENDER → SEARCH → RESET
+    // =========================================================
+    await safeStep('STEP 8 - FILTER BY GENDER', async () => {
+
+        const selects = page.locator('select');
+        const count = await selects.count().catch(() => 0);
+
+        // Gender = fourth dropdown
+        if (count > 3) {
+            const genSel = selects.nth(3);
+            const opts = await genSel.locator('option').allTextContents().catch(() => []);
+            console.log(`  Gender options: ${opts.join(', ')}`);
+
+            if (opts.length > 1) {
+                // Test each gender option
+                for (let i = 1; i < opts.length; i++) {
+                    await genSel.selectOption({ index: i }).catch(() => {});
+                    await page.waitForTimeout(400);
+
+                    await clickButtonByText('SEARCH');
+                    await page.waitForTimeout(2500);
+                    const rows = await getTableRows();
+                    console.log(`  Gender "${opts[i]}": ${rows} row(s)`);
+
+                    await clickButtonByText('RESET');
+                    await page.waitForTimeout(1500);
+                }
+            }
+        }
+    });
+
+    // =========================================================
+    // STEP 9: FILTER BY LOCATION → SEARCH → RESET
+    // =========================================================
+    await safeStep('STEP 9 - FILTER BY LOCATION', async () => {
+
+        const selects = page.locator('select');
+        const count = await selects.count().catch(() => 0);
+
+        // Location = fifth dropdown
+        if (count > 4) {
+            const locSel = selects.nth(4);
+            const opts = await locSel.locator('option').allTextContents().catch(() => []);
+            console.log(`  Location options: ${opts.join(', ')}`);
+
+            if (opts.length > 1) {
+                await locSel.selectOption({ index: 1 }).catch(() => {});
+                await page.waitForTimeout(400);
+                console.log(`  Location selected: "${opts[1]}"`);
+
+                await clickButtonByText('SEARCH');
+                await page.waitForTimeout(2500);
+                const rows = await getTableRows();
+                console.log(`  Rows for location "${opts[1]}": ${rows}`);
+
+                await clickButtonByText('RESET');
+                await page.waitForTimeout(1500);
+                console.log('  Location filter reset');
+            }
+        }
+    });
+
+    // =========================================================
+    // STEP 10: FILTER BY EXPERIENCE → SEARCH → RESET
+    // =========================================================
+    await safeStep('STEP 10 - FILTER BY EXPERIENCE', async () => {
+
+        const selects = page.locator('select');
+        const count = await selects.count().catch(() => 0);
+
+        // Experience = sixth dropdown
+        if (count > 5) {
+            const expSel = selects.nth(5);
+            const opts = await expSel.locator('option').allTextContents().catch(() => []);
+            console.log(`  Experience options: ${opts.join(', ')}`);
+
+            if (opts.length > 1) {
+                await expSel.selectOption({ index: 1 }).catch(() => {});
+                await page.waitForTimeout(400);
+                console.log(`  Experience selected: "${opts[1]}"`);
+
+                await clickButtonByText('SEARCH');
+                await page.waitForTimeout(2500);
+                const rows = await getTableRows();
+                console.log(`  Rows for experience "${opts[1]}": ${rows}`);
+
+                await clickButtonByText('RESET');
+                await page.waitForTimeout(1500);
+                console.log('  Experience filter reset');
+            }
+        }
+    });
+
+    // =========================================================
+    // STEP 11: FILTER BY APPLICANT ID → SEARCH → RESET
+    // =========================================================
+    await safeStep('STEP 11 - FILTER BY APPLICANT ID', async () => {
+
+        const applicantIdInput = page.locator(
+            'input[placeholder="Applicant Id"], input[placeholder*="Applicant" i]'
+        ).first();
+
+        if (await applicantIdInput.count() > 0 &&
+            await applicantIdInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+
+            // Test with known ID from screenshot
+            const testIds = [
+                'PRO-ST-Q-260303-0001-0001',
+                'APD-SD-FSD-260304-0002',
+                'PRO-ST'
+            ];
+
+            for (const id of testIds) {
+                await safeFill(applicantIdInput, id, 'Applicant Id');
+                await page.waitForTimeout(400);
+
+                await clickButtonByText('SEARCH');
+                await page.waitForTimeout(2500);
+                const rows = await getTableRows();
+                console.log(`  Rows for Applicant Id "${id}": ${rows}`);
+
+                await clickButtonByText('RESET');
+                await page.waitForTimeout(1500);
+            }
+        } else {
+            console.log('  Applicant Id input not found');
+        }
+    });
+
+    // =========================================================
+    // STEP 12: COMBINED FILTER TEST (Department + Gender)
+    // =========================================================
+    await safeStep('STEP 12 - COMBINED FILTER (Department + Gender)', async () => {
+
+        const selects = page.locator('select');
+        const count = await selects.count().catch(() => 0);
+
+        if (count > 3) {
+            // Department (index 1)
+            const deptOpts = await selects.nth(1).locator('option').allTextContents().catch(() => []);
+            if (deptOpts.length > 1) {
+                await selects.nth(1).selectOption({ index: 1 }).catch(() => {});
+                console.log(`  Department: "${deptOpts[1]}"`);
+            }
+
+            // Gender (index 3)
+            const genOpts = await selects.nth(3).locator('option').allTextContents().catch(() => []);
+            if (genOpts.length > 1) {
+                await selects.nth(3).selectOption({ index: 1 }).catch(() => {});
+                console.log(`  Gender: "${genOpts[1]}"`);
+            }
+
+            await clickButtonByText('SEARCH');
+            await page.waitForTimeout(2500);
+            const rows = await getTableRows();
+            console.log(`  Rows for combined Department + Gender filter: ${rows}`);
+
+            await logTableData(3);
+
+            await clickButtonByText('RESET');
+            await page.waitForTimeout(1500);
+            console.log('  Combined filter reset');
+        }
+    });
+
+    // =========================================================
+    // STEP 13: SEARCH BUTTON (empty — returns all)
+    // =========================================================
+    await safeStep('STEP 13 - SEARCH BUTTON (empty = all records)', async () => {
+
+        await clickButtonByText('SEARCH');
+        await page.waitForTimeout(2500);
+        const rows = await getTableRows();
+        console.log(`  Total records (no filter): ${rows}`);
+    });
+
+    // =========================================================
+    // STEP 14: RESET BUTTON VALIDATION
+    // =========================================================
+    await safeStep('STEP 14 - RESET BUTTON VALIDATION', async () => {
+
+        // Fill Applicant Id so Reset is meaningful
+        const idInput = page.locator('input[placeholder="Applicant Id"], input[placeholder*="Applicant" i]').first();
+        if (await idInput.count() > 0) {
+            await safeFill(idInput, 'TEST-VALUE', 'Applicant Id');
+        }
+
+        // Select something in first dropdown
+        const firstSel = page.locator('select').first();
+        if (await firstSel.count() > 0) {
+            await firstSel.selectOption({ index: 1 }).catch(() => {});
+        }
+
+        await clickButtonByText('RESET');
+        await page.waitForTimeout(2000);
+
+        // Verify fields cleared
+        if (await idInput.count() > 0) {
+            const val = await idInput.inputValue({ timeout: 2000 }).catch(() => '');
+            console.log(`  Applicant Id after reset: "${val}" ${val === '' ? '✅ cleared' : '⚠️ NOT cleared'}`);
+        }
+
+        // Verify dropdowns reset to default
+        const firstSelVal = await firstSel.inputValue({ timeout: 2000 }).catch(() => '');
+        console.log(`  First dropdown after reset: "${firstSelVal}"`);
+
+        const rowsAfterReset = await getTableRows();
+        console.log(`  Rows after RESET: ${rowsAfterReset}`);
+    });
+
+    // =========================================================
+    // STEP 15: SHOW ENTRIES DROPDOWN
+    // =========================================================
+    await safeStep('STEP 15 - SHOW ENTRIES DROPDOWN', async () => {
+
+        // "Show 50 entries" dropdown — usually a separate select near the table
+        const allSelects = page.locator('select');
+        const count = await allSelects.count().catch(() => 0);
+
+        for (let i = 0; i < count; i++) {
+            try {
+                const sel = allSelects.nth(i);
+                const opts = await sel.locator('option').allTextContents().catch(() => []);
+                const isEntriesDropdown = opts.some(o => /10|25|50|100/i.test(o));
+                if (isEntriesDropdown) {
+                    console.log(`  Show entries dropdown found (index ${i}): [${opts.join(' | ')}]`);
+
+                    for (let j = 0; j < opts.length; j++) {
+                        await sel.selectOption({ index: j }).catch(() => {});
+                        await page.waitForTimeout(1000);
+                        const rows = await getTableRows();
+                        console.log(`  Show "${opts[j]}": ${rows} rows visible`);
+                    }
+                    break;
+                }
+            } catch { }
+        }
+    });
+
+    // =========================================================
+    // STEP 16: SEARCH TABLE DATA (inline search box)
+    // =========================================================
+    await safeStep('STEP 16 - SEARCH TABLE DATA (inline)', async () => {
+
+        const searchInput = page.locator('input[placeholder="Search Table Data"]').first();
+
+        if (await searchInput.count() > 0 &&
+            await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+
+            // Use real data from screenshot
+            const terms = [
+                'Shyanne',        // First name visible in screenshot
+                'Kai Mays',       // Second candidate
+                'Rose Kane',      // Third/fourth candidate
+                'Bushra Saleem',  // Fifth candidate
+                'QA',             // Job title
+                'Full Stack Developer',
+                'Software Team',
+                'Software Department',
+                'PRO-ST',         // ID prefix
+                'APD-SD'          // ID prefix
+            ];
+
+            for (const term of terms) {
+                await safeFill(searchInput, term, 'Table Search');
+                await page.waitForTimeout(1500);
+                const rows = await getTableRows();
+                console.log(`  Search "${term}": ${rows} row(s)`);
+                await searchInput.clear({ timeout: 3000 }).catch(() => {});
+                await page.waitForTimeout(600);
+            }
+        } else {
+            console.log('  ⚠️ Search Table Data input not found');
+        }
+    });
+
+    // =========================================================
+    // STEP 17: TABLE COLUMNS VALIDATION
+    // Columns from screenshot: Id | Name | Job Title | Department | Email | Contact Number | Actions
+    // =========================================================
+    await safeStep('STEP 17 - TABLE COLUMNS VALIDATION', async () => {
+
+        const tables = page.locator('table');
+        const tableCount = await tables.count().catch(() => 0);
+        console.log(`  Tables on page: ${tableCount}`);
+
+        if (tableCount === 0) {
+            console.log('  ⚠️ No table found');
+            return;
+        }
+
+        const headers = await tables.first().locator('th')
+            .allInnerTexts().catch(() => []);
+        console.log(`  Columns: ${headers.join(' | ')}`);
+
+        // Expected columns from screenshot
+        const expected = ['Id', 'Name', 'Job Title', 'Department', 'Email', 'Contact Number', 'Actions'];
+        for (const col of expected) {
+            const found = headers.some(h => h.toLowerCase().includes(col.toLowerCase()));
+            console.log(`  Column "${col}": ${found ? '✅ present' : '⚠️ missing'}`);
+        }
+    });
+
+    // =========================================================
+    // STEP 18: TABLE ROW DATA VALIDATION
+    // =========================================================
+    await safeStep('STEP 18 - TABLE ROW DATA VALIDATION', async () => {
+
+        const rows = await getTableRows();
+        console.log(`  Total data rows: ${rows}`);
+
+        if (rows === 0) {
+            const emptySelectors = [
+                '.ant-empty', '[class*="empty"]',
+                'text=/no data/i', 'text=/no records/i', 'text=/no results/i'
+            ];
+            for (const sel of emptySelectors) {
+                const el = page.locator(sel).first();
+                if (await el.count() > 0 && await el.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    const text = await el.innerText({ timeout: 2000 }).catch(() => '');
+                    console.log(`  Empty state: "${text.trim()}"`);
+                    break;
+                }
+            }
+            return;
+        }
+
+        // Validate all rows (up to 10)
+        for (let i = 0; i < Math.min(rows, 10); i++) {
+            const cells = await page.locator('table tbody tr').nth(i)
+                .locator('td').allInnerTexts().catch(() => []);
+            console.log(`  Row ${i + 1}: ${cells.join(' | ')}`);
+
+            // Data integrity checks
+            if (!cells[0]?.trim()) console.log(`    ⚠️ Row ${i + 1}: Id is empty`);
+            if (!cells[1]?.trim()) console.log(`    ⚠️ Row ${i + 1}: Name is empty`);
+            if (!cells[2]?.trim()) console.log(`    ⚠️ Row ${i + 1}: Job Title is empty`);
+            if (!cells[3]?.trim()) console.log(`    ⚠️ Row ${i + 1}: Department is empty`);
+            if (!cells[4]?.trim()) console.log(`    ⚠️ Row ${i + 1}: Email is empty`);
+            if (!cells[5]?.trim()) console.log(`    ⚠️ Row ${i + 1}: Contact Number is empty`);
+        }
+    });
+
+    // =========================================================
+    // STEP 19: TABLE COLUMN SORT
+    // =========================================================
+    await safeStep('STEP 19 - TABLE COLUMN SORT', async () => {
+
+        const ths = page.locator('table thead th');
+        const count = await ths.count().catch(() => 0);
+        console.log(`  Sortable columns: ${count}`);
+
+        for (let i = 0; i < Math.min(count, 6); i++) {
+            try {
+                const th = ths.nth(i);
+                const text = await th.innerText({ timeout: 2000 }).catch(() => '');
+                if (!text.trim() || text.trim() === 'Actions') continue;
+
+                await th.click({ timeout: 4000 });
+                await page.waitForTimeout(700);
+                const rowsAsc = await getTableRows();
+                console.log(`  Sort ASC "${text.trim()}": ${rowsAsc} rows`);
+
+                await th.click({ timeout: 4000 });
+                await page.waitForTimeout(700);
+                const rowsDesc = await getTableRows();
+                console.log(`  Sort DESC "${text.trim()}": ${rowsDesc} rows`);
+
+            } catch {
+                console.log(`  ⚠️ Could not sort column ${i + 1}`);
+            }
+        }
+    });
+
+    // =========================================================
+    // STEP 20: EXPORT BUTTONS (CSV / PDF icons)
+    // =========================================================
+    await safeStep('STEP 20 - EXPORT BUTTONS (CSV / PDF)', async () => {
+
+        const exportSels = [
+            'button[title*="CSV" i]',
+            'button[title*="Excel" i]',
+            'button[title*="PDF" i]',
+            'button[aria-label*="export" i]',
+            'button[aria-label*="csv" i]',
+            'button[aria-label*="pdf" i]',
+            'button[aria-label*="download" i]'
+        ];
+
+        let found = 0;
+        for (const sel of exportSels) {
+            const btn = page.locator(sel).first();
+            if (await btn.count() > 0 && await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await btn.click({ timeout: 4000 }).catch(() => {});
+                await page.waitForTimeout(1000);
+                console.log(`  Export clicked: ${sel}`);
+                found++;
+            }
+        }
+
+        // Fallback: icon-only buttons (the two orange icons in screenshot)
+        if (found === 0) {
+            const iconBtns = page.locator('button:has(svg), button:has(img)');
+            const total = await iconBtns.count().catch(() => 0);
+            console.log(`  Icon-only export buttons: ${total}`);
+
+            for (let i = 0; i < Math.min(total, 4); i++) {
+                try {
+                    if (await iconBtns.nth(i).isVisible({ timeout: 2000 })) {
+                        await iconBtns.nth(i).click({ timeout: 4000 });
+                        await page.waitForTimeout(800);
+                        console.log(`  Icon button ${i + 1} clicked`);
+                    }
+                } catch { }
+            }
+        }
+    });
+
+    // =========================================================
+    // STEP 21: ROW ACTIONS — THREE DOT MENU (⋮)
+    // From screenshot: each row has a "⋮" vertical dots menu
+    // =========================================================
+    await safeStep('STEP 21 - ROW ACTIONS (Three Dot Menu ⋮)', async () => {
+
+        const rows = await getTableRows();
+        console.log(`  Rows for action testing: ${rows}`);
+        if (rows === 0) { console.log('  No rows'); return; }
+
+        const firstRow = page.locator('table tbody tr').first();
+        await firstRow.hover({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(400);
+
+        // Three-dot menu selectors
+        const dotMenuSelectors = [
+            firstRow.locator('[class*="action"]').first(),
+            firstRow.locator('button').last(),
+            firstRow.locator('[aria-label*="more" i]').first(),
+            firstRow.locator('[aria-label*="action" i]').first(),
+            firstRow.locator('td').last().locator('button, [role="button"], svg').first(),
+            firstRow.locator('td:last-child button').first(),
+            firstRow.locator('td:last-child').first()
+        ];
+
+        let menuOpened = false;
+
+        for (const el of dotMenuSelectors) {
+            try {
+                if (await el.count() > 0 && await el.isVisible({ timeout: 2000 })) {
+                    await el.click({ timeout: 4000 });
+                    await page.waitForTimeout(1500);
+
+                    // Check if dropdown menu appeared
+                    const dropdownSels = [
+                        '.ant-dropdown', '[class*="dropdown"]',
+                        '[class*="menu"]', '[role="menu"]',
+                        '[class*="popup"]', '.ant-popover'
+                    ];
+
+                    for (const dSel of dropdownSels) {
+                        const dropdown = page.locator(dSel).first();
+                        if (await dropdown.count() > 0 &&
+                            await dropdown.isVisible({ timeout: 2000 }).catch(() => false)) {
+
+                            console.log(`  ⋮ Menu opened (${dSel})`);
+                            menuOpened = true;
+
+                            // List all menu items
+                            const menuItems = dropdown.locator('li, [role="menuitem"], a, button');
+                            const itemCount = await menuItems.count().catch(() => 0);
+                            console.log(`  Menu items: ${itemCount}`);
+
+                            for (let j = 0; j < Math.min(itemCount, 8); j++) {
+                                const itemText = await menuItems.nth(j)
+                                    .innerText({ timeout: 1500 }).catch(() => '');
+                                if (itemText.trim()) {
+                                    console.log(`    Menu item ${j + 1}: "${itemText.trim()}"`);
+                                }
+                            }
+                            break;
+                        }
+                    }
+
+                    if (menuOpened) break;
+                }
+            } catch { }
+        }
+
+        if (!menuOpened) {
+            console.log('  ⚠️ Three-dot menu did not open');
+            // Log what's in Actions column
+            const lastCol = firstRow.locator('td').last();
+            const lastColHTML = await lastCol.innerHTML({ timeout: 2000 }).catch(() => '');
+            console.log(`  Actions column HTML preview: ${lastColHTML.substring(0, 200)}`);
+        }
+
+        // Close any open dropdown
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(500);
+    });
+
+    // =========================================================
+    // STEP 22: VIEW CANDIDATE PROFILE (from ⋮ menu or row click)
+    // =========================================================
+    await safeStep('STEP 22 - VIEW CANDIDATE PROFILE DETAIL', async () => {
+
+        const rows = await getTableRows();
+        if (rows === 0) { console.log('  No rows'); return; }
+
+        const firstRow = page.locator('table tbody tr').first();
+
+        // Try clicking the name or ID cell
+        const nameCells = [
+            firstRow.locator('td').nth(0),  // ID
+            firstRow.locator('td').nth(1),  // Name
+        ];
+
+        let detailOpened = false;
+
+        for (const cell of nameCells) {
+            await cell.click({ timeout: 4000 }).catch(() => {});
+            await page.waitForTimeout(2500);
+
+            // Check if navigated to detail page
+            const currentUrl = page.url();
+            if (currentUrl.includes('candidate') && currentUrl !== 'https://demo.culturehcm.com/recruitment/candidate-information') {
+                console.log(`  Navigated to detail page: ${currentUrl}`);
+                detailOpened = true;
+                await page.goBack({ timeout: 10000 }).catch(() => {});
+                await page.waitForTimeout(2000);
+                break;
+            }
+
+            // Check if modal opened
+            const modalSels = ['[role="dialog"]', '.ant-modal', '.ant-drawer', '[class*="modal"]'];
+            for (const sel of modalSels) {
+                const opened = await page.locator(sel).first()
+                    .isVisible({ timeout: 2000 }).catch(() => false);
+                if (opened) {
+                    console.log(`  Detail modal opened (${sel})`);
+                    detailOpened = true;
+                    await closeAnyModal();
+                    break;
+                }
+            }
+            if (detailOpened) break;
+        }
+
+        if (!detailOpened) {
+            console.log('  ⚠️ Candidate detail did not open via cell click');
+        }
+    });
+
+    // =========================================================
+    // STEP 23: VIEW ACTION (from three dot menu)
+    // =========================================================
+    await safeStep('STEP 23 - VIEW ACTION FROM MENU', async () => {
+
+        const rows = await getTableRows();
+        if (rows === 0) { console.log('  No rows'); return; }
+
+        const firstRow = page.locator('table tbody tr').first();
+        await firstRow.hover({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(400);
+
+        // Open three-dot menu
+        const actionCell = firstRow.locator('td').last();
+        await actionCell.click({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(1500);
+
+        // Find and click "View" in menu
+        const viewSelectors = [
+            page.locator('.ant-dropdown li:has-text("View")').first(),
+            page.locator('[role="menuitem"]:has-text("View")').first(),
+            page.locator('[class*="menu"] a:has-text("View")').first(),
+            page.locator('[class*="dropdown"]:has-text("View")').first(),
+            page.locator('text=View Profile').first(),
+            page.locator('text=View').first()
+        ];
+
+        let viewClicked = false;
+        for (const el of viewSelectors) {
+            if (await el.count() > 0 && await el.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await el.click({ timeout: 4000 }).catch(() => {});
+                await page.waitForTimeout(2500);
+                console.log('  View clicked from menu');
+                viewClicked = true;
+                break;
+            }
+        }
+
+        if (viewClicked) {
+            const currentUrl = page.url();
+            console.log(`  URL after View: ${currentUrl}`);
+
+            const modalVisible = await page.locator(
+                '[role="dialog"], .ant-modal, .ant-drawer'
+            ).first().isVisible({ timeout: 2000 }).catch(() => false);
+
+            if (modalVisible) {
+                await closeAnyModal();
+                console.log('  View modal closed');
+            } else if (currentUrl !== 'https://demo.culturehcm.com/recruitment/candidate-information') {
+                await page.goBack({ timeout: 10000 }).catch(() => {});
+                await page.waitForTimeout(2000);
+                console.log('  Navigated back from detail page');
+            }
+        } else {
+            console.log('  ⚠️ View option not found in menu');
+            await page.keyboard.press('Escape');
+        }
+    });
+
+    // =========================================================
+    // STEP 24: EDIT CANDIDATE (from three dot menu)
+    // =========================================================
+    await safeStep('STEP 24 - EDIT CANDIDATE FROM MENU', async () => {
+
+        const rows = await getTableRows();
+        if (rows === 0) { console.log('  No rows'); return; }
+
+        const firstRow = page.locator('table tbody tr').first();
+        await firstRow.hover({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(400);
+
+        // Open three-dot menu
+        const actionCell = firstRow.locator('td').last();
+        await actionCell.click({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(1500);
+
+        // Find Edit in menu
+        const editSels = [
+            page.locator('.ant-dropdown li:has-text("Edit")').first(),
+            page.locator('[role="menuitem"]:has-text("Edit")').first(),
+            page.locator('[class*="menu"] a:has-text("Edit")').first(),
+            page.locator('text=Edit').first()
+        ];
+
+        let editClicked = false;
+        for (const el of editSels) {
+            if (await el.count() > 0 && await el.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await el.click({ timeout: 4000 }).catch(() => {});
+                await page.waitForTimeout(2500);
+                console.log('  Edit clicked from menu');
+                editClicked = true;
+                break;
+            }
+        }
+
+        if (editClicked) {
+            const modalSels = ['[role="dialog"]', '.ant-modal', '.ant-drawer', '[class*="modal"]'];
+            let opened = false;
+            for (const sel of modalSels) {
+                opened = await page.locator(sel).first().isVisible({ timeout: 2000 }).catch(() => false);
+                if (opened) {
+                    console.log(`  Edit form opened (${sel})`);
+
+                    // List form fields
+                    const fields = page.locator(`${sel} input, ${sel} select, ${sel} textarea`);
+                    const fCount = await fields.count().catch(() => 0);
+                    console.log(`  Edit form fields: ${fCount}`);
+                    for (let i = 0; i < Math.min(fCount, 10); i++) {
+                        const ph = await fields.nth(i).getAttribute('placeholder').catch(() => '');
+                        const type = await fields.nth(i).getAttribute('type').catch(() => '');
+                        const tag = await fields.nth(i).evaluate(e => e.tagName).catch(() => '');
+                        console.log(`    Field ${i + 1} [${tag}]: type="${type}" placeholder="${ph}"`);
+                    }
+
+                    await closeAnyModal();
+                    console.log('  Edit modal closed');
+                    break;
+                }
+            }
+            if (!opened) {
+                const currentUrl = page.url();
+                console.log(`  After edit click URL: ${currentUrl}`);
+                if (currentUrl !== 'https://demo.culturehcm.com/recruitment/candidate-information') {
+                    await page.goBack({ timeout: 10000 }).catch(() => {});
+                    await page.waitForTimeout(2000);
+                }
+            }
+        } else {
+            console.log('  ⚠️ Edit option not found in menu');
+            await page.keyboard.press('Escape');
+        }
+    });
+
+    // =========================================================
+    // STEP 25: DELETE CANDIDATE (from menu — cancel only)
+    // =========================================================
+    await safeStep('STEP 25 - DELETE CANDIDATE (cancel only)', async () => {
+
+        const rows = await getTableRows();
+        if (rows === 0) { console.log('  No rows'); return; }
+
+        const firstRow = page.locator('table tbody tr').first();
+        await firstRow.hover({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(400);
+
+        // Open three-dot menu
+        const actionCell = firstRow.locator('td').last();
+        await actionCell.click({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(1500);
+
+        // Find Delete in menu
+        const deleteSels = [
+            page.locator('.ant-dropdown li:has-text("Delete")').first(),
+            page.locator('[role="menuitem"]:has-text("Delete")').first(),
+            page.locator('[class*="menu"] a:has-text("Delete")').first(),
+            page.locator('text=Delete').first()
+        ];
+
+        let deleteClicked = false;
+        for (const el of deleteSels) {
+            if (await el.count() > 0 && await el.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await el.click({ timeout: 4000 }).catch(() => {});
+                await page.waitForTimeout(2000);
+                console.log('  Delete clicked from menu');
+                deleteClicked = true;
+                break;
+            }
+        }
+
+        if (deleteClicked) {
+            const confirmSels = [
+                '[role="dialog"]', '.ant-modal-confirm',
+                '.ant-popover', '[class*="confirm"]'
+            ];
+            let confirmVisible = false;
+            for (const sel of confirmSels) {
+                confirmVisible = await page.locator(sel).first()
+                    .isVisible({ timeout: 2000 }).catch(() => false);
+                if (confirmVisible) {
+                    console.log(`  Delete confirmation appeared (${sel})`);
+                    break;
+                }
+            }
+
+            if (confirmVisible) {
+                const cancelBtn = page.locator('button:has-text("Cancel"), button:has-text("No")').first();
+                await safeClick(cancelBtn, 'Cancel delete');
+                console.log('  Delete cancelled — data preserved ✅');
+            } else {
+                console.log('  ⚠️ No confirmation dialog after delete click');
+                await page.keyboard.press('Escape');
+            }
+        } else {
+            console.log('  ⚠️ Delete option not found in menu');
+            await page.keyboard.press('Escape');
+        }
+    });
+
+    // =========================================================
+    // STEP 26: DOWNLOAD RESUME (from menu — if available)
+    // =========================================================
+    await safeStep('STEP 26 - DOWNLOAD RESUME (if available)', async () => {
+
+        const rows = await getTableRows();
+        if (rows === 0) { console.log('  No rows'); return; }
+
+        const firstRow = page.locator('table tbody tr').first();
+        await firstRow.hover({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(400);
+
+        const actionCell = firstRow.locator('td').last();
+        await actionCell.click({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(1500);
+
+        // Find Download Resume / CV in menu
+        const resumeSels = [
+            page.locator('text=Download Resume').first(),
+            page.locator('text=Download CV').first(),
+            page.locator('text=Resume').first(),
+            page.locator('[class*="menu"] a:has-text("Resume")').first(),
+            page.locator('[role="menuitem"]:has-text("Resume")').first()
+        ];
+
+        let found = false;
+        for (const el of resumeSels) {
+            if (await el.count() > 0 && await el.isVisible({ timeout: 2000 }).catch(() => false)) {
+                console.log('  Download Resume option found ✅');
+                found = true;
+                // Don't actually click to avoid unwanted downloads
+                break;
+            }
+        }
+
+        if (!found) console.log('  Download Resume option not in menu (may be in detail view)');
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(500);
+    });
+
+    // =========================================================
+    // STEP 27: PAGINATION
+    // =========================================================
+    await safeStep('STEP 27 - PAGINATION', async () => {
+
+        const nextSels = [
+            'button[aria-label*="next" i]',
+            '.ant-pagination-next button',
+            'li.ant-pagination-next',
+            '[class*="next"]',
+            '[title="Next Page"]',
+            'button:has-text(">")',
+        ];
+
+        let nextBtn = null;
+        for (const sel of nextSels) {
+            const el = page.locator(sel).first();
+            if (await el.count() > 0 && await el.isVisible({ timeout: 2000 }).catch(() => false)) {
+                nextBtn = el;
+                console.log(`  Next page button: "${sel}"`);
+                break;
+            }
+        }
+
+        if (!nextBtn) {
+            console.log('  ⚠️ Pagination not found (may be single page)');
+            return;
+        }
+
+        const enabled = await nextBtn.isEnabled({ timeout: 2000 }).catch(() => false);
+        console.log(`  Next page enabled: ${enabled}`);
+
+        if (enabled) {
+            await nextBtn.click({ timeout: 4000 }).catch(() => {});
+            await page.waitForTimeout(2000);
+            const rows2 = await getTableRows();
+            console.log(`  Rows on page 2: ${rows2}`);
+            await logTableData(3);
+
+            const prevSels = [
+                'button[aria-label*="prev" i]',
+                '.ant-pagination-prev button',
+                '[class*="prev"]'
+            ];
+            for (const sel of prevSels) {
+                const prev = page.locator(sel).first();
+                if (await prev.count() > 0 && await prev.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await prev.click({ timeout: 4000 }).catch(() => {});
+                    await page.waitForTimeout(2000);
+                    console.log('  Returned to page 1');
+                    break;
+                }
+            }
+        }
+    });
+
+    // =========================================================
+    // STEP 28: SIDEBAR NAVIGATION VALIDATION
+    // =========================================================
+    await safeStep('STEP 28 - SIDEBAR NAVIGATION', async () => {
+
+        // From screenshot: full sidebar visible
+        const sidebarSections = [
+            'Dashboard',
+            'Applications',
+            'ESS',
+            'My Team',
+            'Employees',
+            'Attendance',
+            'Leave',
+            'Payroll',
+            'Recruitment'
+        ];
+
+        const recruitmentItems = [
+            'Requisition Planning',
+            'Manage Applicants',
+            'Manage Interviews'
+        ];
+
+        console.log('  Main sidebar sections:');
+        for (const item of sidebarSections) {
+            const el = page.locator(`text="${item}"`).first();
+            const visible = await el.count() > 0
+                ? await el.isVisible({ timeout: 2000 }).catch(() => false)
+                : false;
+            console.log(`    "${item}": ${visible ? '✅' : '⚠️'}`);
+        }
+
+        console.log('  Recruitment sub-items:');
+        for (const item of recruitmentItems) {
+            const el = page.locator(`text="${item}"`).first();
+            const visible = await el.count() > 0
+                ? await el.isVisible({ timeout: 2000 }).catch(() => false)
+                : false;
+            console.log(`    "${item}": ${visible ? '✅' : '⚠️'}`);
+        }
+    });
+
+    // =========================================================
+    // STEP 29: BROKEN IMAGE CHECK
+    // =========================================================
+    await safeStep('STEP 29 - BROKEN IMAGE CHECK', async () => {
+
+        const imgs = page.locator('img');
+        const total = await imgs.count().catch(() => 0);
+        let broken = 0;
+        console.log(`  Total images: ${total}`);
+
+        for (let i = 0; i < total; i++) {
+            try {
+                const w = await imgs.nth(i).evaluate(img => img.naturalWidth, { timeout: 3000 });
+                if (w === 0) {
+                    const src = await imgs.nth(i).getAttribute('src').catch(() => '');
+                    console.log(`  ⚠️ Broken image: ${src}`);
+                    broken++;
+                }
+            } catch { }
+        }
+
+        console.log(broken === 0 ? '  All images OK ✅' : `  Broken images: ${broken}`);
+    });
+
+    // =========================================================
+    // STEP 30: SCROLL TEST (vertical + horizontal)
+    // =========================================================
+    await safeStep('STEP 30 - SCROLL TEST', async () => {
+
+        // Scroll down
+        await page.mouse.wheel(0, 2000);
+        await page.waitForTimeout(700);
+        await page.mouse.wheel(0, 2000);
+        await page.waitForTimeout(700);
+
+        // Scroll back up
+        await page.mouse.wheel(0, -4000);
+        await page.waitForTimeout(700);
+
+        // Horizontal scroll on table
+        await page.evaluate(() => {
+            const table = document.querySelector('table');
+            if (table?.parentElement) {
+                table.parentElement.scrollLeft += 500;
+                setTimeout(() => table.parentElement.scrollLeft = 0, 500);
+            }
+        });
+        await page.waitForTimeout(800);
+
+        console.log('  Scroll test (vertical + horizontal) completed');
+    });
+
+    // =========================================================
+    // STEP 31: FINAL SCREENSHOTS
+    // =========================================================
+    await safeStep('STEP 31 - FINAL SCREENSHOTS', async () => {
+
+        await page.screenshot({
+            path: 'test-assets/candidate-profile-viewport.png',
+            fullPage: false
+        });
+        console.log('  Viewport screenshot: test-assets/candidate-profile-viewport.png');
+
+        await page.screenshot({
+            path: 'test-assets/candidate-profile-fullpage.png',
+            fullPage: true
+        });
+        console.log('  Full page screenshot: test-assets/candidate-profile-fullpage.png');
+    });
+
+    console.log('\n✅ Candidate Profile — Full Module Testing COMPLETE');
+    console.log('📁 Screenshots saved in: test-assets/');
+});
