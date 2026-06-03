@@ -1,34 +1,21 @@
-// playwright.config.js
-const { defineConfig, devices } = require('@playwright/test');
+// playwright.config.js — place this in the same folder as the spec file
+
+const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: '.',
-  testMatch: '**/*.spec.js',
-
-  timeout: 0,               // No per-test timeout – UI focus only
-  expect: { timeout: 15000 },
-
-  workers: 1,               // Sequential – each test logs in independently
-  fullyParallel: false,
-  retries: 1,               // Retry once on flake
-
-  reporter: [
-    ['list'],
-    ['html', { outputFolder: 'playwright-report', open: 'never' }],
-  ],
+  timeout: 60_000,          // 60s per test
+  retries: 1,               // retry once on flake
+  workers: 1,               // run serially — storageState is shared
+  reporter: [['list'], ['html', { open: 'never' }]],
 
   use: {
-    baseURL: 'https://demo.culturehcm.com',
-    headless: false,                  // Watch it run; set true for CI
-    viewport: { width: 1440, height: 900 },
-    actionTimeout: 15000,
-    navigationTimeout: 60000,         // Generous for demo server
+    headless: false,        // set true for CI
+    viewport:  { width: 1440, height: 900 },
+    baseURL:   'https://demo.culturehcm.com',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
-    trace: 'retain-on-failure',
+    video:      'retain-on-failure',
+    trace:      'on-first-retry',
+    // storageState is set per-describe in the spec — DO NOT set globally here
   },
-
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-  ],
 });
