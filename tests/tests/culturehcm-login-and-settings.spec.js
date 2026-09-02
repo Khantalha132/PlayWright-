@@ -86,10 +86,7 @@ test.describe('CultureHCM — Full Suite', () => {
   async function goSettings(page) {
     await page.goto(SETTINGS_URL, { waitUntil: 'domcontentloaded' });
     // Wait for any of the known tabs — confirms the module has rendered
-    await page.waitForSelector(
-      'text=Regional Settings, text=Personal Settings',
-      { timeout: 20_000 }
-    );
+    await page.waitForSelector('text=Regional Settings', { timeout: 20_000 });
   }
 
   /** Click a main tab by its exact visible label */
@@ -248,7 +245,7 @@ test.describe('CultureHCM — Full Suite', () => {
     await expect(page.locator('input[type="password"]')).toBeVisible();
     await expect(page.locator('button:has-text("Login")')).toBeVisible();
     await expect(page.locator('text=Forgot password?')).toBeVisible();
-    await expect(page.locator('text=Your Workplace, Just a Login Away.')).toBeVisible();
+    await expect(page.getByText('Your Workplace, Just a Login Away.')).toBeVisible();
     await expect(page.locator('text=/Copyright.*CultureHCM/i')).toBeVisible();
 
     // Social icons row

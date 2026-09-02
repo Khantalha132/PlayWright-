@@ -1,0 +1,16 @@
+{
+  "name": "admin-dashboard",
+  "version": "1.0.0",
+  "description": "Full browser-based QA coverage for `https://adminpanel2.appedology.pk`   **86 test cases** across 8 test files, organized by feature area.",
+  "main": "01-login.spec.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@playwright/test": "^1.61.0"
+  }
+}
